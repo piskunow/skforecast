@@ -29,8 +29,8 @@ from ..utils import check_predict_input
 
 
 logging.basicConfig(
-    format = '%(name)-10s %(levelname)-5s %(message)s', 
-    level  = logging.INFO,
+    format='%(name)-10s %(levelname)-5s %(message)s',
+    level=logging.INFO,
 )
 
 
@@ -38,71 +38,71 @@ class ForecasterAutoregCustom(ForecasterBase):
     '''
     This class turns any regressor compatible with the scikit-learn API into a
     recursive (multi-step) forecaster with a custom function to create predictors.
-    
+
     Parameters
     ----------
     regressor : regressor or pipeline compatible with the scikit-learn API
         An instance of a regressor or pipeline compatible with the scikit-learn API.
-        
+
     fun_predictors: Callable
-        Function that takes a numpy ndarray as a window of values as input and  
+        Function that takes a numpy ndarray as a window of values as input and
         returns a numpy ndarray with the predictors associated with that window.
-        
+
     window_size: int
         Size of the window needed by `fun_predictors` to create the predictors.
-    
-    
+
+
     Attributes
     ----------
     regressor : regressor compatible with the scikit-learn API
         An instance of a regressor compatible with the scikit-learn API.
-        
+
     create_predictors: Callable
-        Function that takes a numpy ndarray as a window of values as input and  
+        Function that takes a numpy ndarray as a window of values as input and
         returns a numpy ndarray with the predictors associated with that window.
 
     source_code_create_predictors: str
         Source code of the custom function used to create the predictors.
-        
+
     window_size: int
         Size of the window needed by `fun_predictors` to create the predictors.
-        
+
     last_window : pandas Series
         Last window the forecaster has seen during trained. It stores the
         values needed to predict the next `step` right after the training data.
-        
+
     window_size: int
         Size of the window needed by `fun_predictors` to create the predictors.
-        
+
     fitted: Bool
         Tag to identify if the regressor has been fitted (trained).
-        
+
     index_type : type
         Type of index of the input used in training.
-        
+
     index_freq : str
         Frequency of Index of the input used in training.
-        
+
     training_range: pandas Index
         First and last values of index of the data used during training.
-        
+
     included_exog : bool
         If the forecaster has been trained using exogenous variable/s.
-        
+
     exog_type : type
         Type of exogenous variable/s used in training.
-        
+
     exog_col_names : list
         Names of columns of `exog` if `exog` used in training was a pandas
         DataFrame.
 
     X_train_col_names : list
         Names of columns of the matrix created internally for training.
-        
+
     in_sample_residuals: numpy ndarray
         Residuals of the model when predicting training data. Only stored up to
         1000 values.
-        
+
     out_sample_residuals: numpy ndarray
         Residuals of the model when predicting non training data. Only stored
         up to 1000 values.
@@ -115,29 +115,29 @@ class ForecasterAutoregCustom(ForecasterBase):
 
     skforcast_version: str
         Version of skforecast library used to create the forecaster.
-     
+
     '''
-    
+
     def __init__(self, regressor, fun_predictors: callable, window_size: int) -> None:
-        
-        self.regressor            = regressor
-        self.create_predictors    = fun_predictors
-        self.window_size          = window_size
-        self.index_type           = None
-        self.index_freq           = None
-        self.training_range       = None
-        self.last_window          = None
-        self.included_exog        = False
-        self.exog_type            = None
-        self.exog_col_names       = None
-        self.X_train_col_names    = None
-        self.in_sample_residuals  = None
+
+        self.regressor = regressor
+        self.create_predictors = fun_predictors
+        self.window_size = window_size
+        self.index_type = None
+        self.index_freq = None
+        self.training_range = None
+        self.last_window = None
+        self.included_exog = False
+        self.exog_type = None
+        self.exog_col_names = None
+        self.X_train_col_names = None
+        self.in_sample_residuals = None
         self.out_sample_residuals = None
-        self.fitted               = False
-        self.creation_date        = pd.Timestamp.today().strftime('%Y-%m-%d %H:%M:%S')
-        self.fit_date             = None
-        self.skforcast_version    = skforecast.__version__
-        
+        self.fitted = False
+        self.creation_date = pd.Timestamp.today().strftime('%Y-%m-%d %H:%M:%S')
+        self.fit_date = None
+        self.skforcast_version = skforecast.__version__
+
         if not isinstance(window_size, int):
             raise Exception(
                 f'`window_size` must be int, got {type(window_size)}'
@@ -148,16 +148,16 @@ class ForecasterAutoregCustom(ForecasterBase):
                 f'`fun_predictors` must be callable, got {type(fun_predictors)}.'
             )
         self.source_code_create_predictors = getsource(fun_predictors)
-                
-        
+
     def __repr__(self) -> str:
         '''
         Information displayed when a ForecasterAutoregCustom object is printed.
         '''
 
         if isinstance(self.regressor, sklearn.pipeline.Pipeline):
-            name_pipe_steps = tuple(name + "__" for name in self.regressor.named_steps.keys())
-            params = {key : value for key, value in self.regressor.get_params().items() \
+            name_pipe_steps = tuple(
+                name + "__" for name in self.regressor.named_steps.keys())
+            params = {key: value for key, value in self.regressor.get_params().items()
                      if key.startswith(name_pipe_steps)}
         else:
             params = self.regressor.get_params()
@@ -183,35 +183,34 @@ class ForecasterAutoregCustom(ForecasterBase):
 
         return info
 
-    
     def create_train_X_y(
         self,
         y: pd.Series,
-        exog: Optional[Union[pd.Series, pd.DataFrame]]=None
+        exog: Optional[Union[pd.Series, pd.DataFrame]] = None
     ) -> Tuple[pd.DataFrame, pd.Series]:
         '''
         Create training matrices from univariate time series.
-        
+
         Parameters
-        ----------        
+        ----------
         y : pandas Series
             Training time series.
-            
+
         exog : pandas Series, pandas DataFrame, default `None`
             Exogenous variable/s included as predictor/s. Must have the same
             number of observations as `y` and their indexes must be aligned.
 
 
-        Returns 
+        Returns
         -------
         X_train : pandas DataFrame
             Pandas DataFrame with the training values (predictors).
-            
+
         y_train : pandas Series
             Values (target) of the time series related to each row of `X_train`.
-        
+
         '''
-        
+
         if len(y) < self.window_size + 1:
             raise Exception(
                 f'`y` must have as many values as the windows_size needed by '
@@ -221,7 +220,7 @@ class ForecasterAutoregCustom(ForecasterBase):
 
         check_y(y=y)
         y_values, y_index = preprocess_y(y=y)
-        
+
         if exog is not None:
             if len(exog) != len(y):
                 raise Exception(
@@ -232,40 +231,44 @@ class ForecasterAutoregCustom(ForecasterBase):
             if not (exog_index[:len(y_index)] == y_index).all():
                 raise Exception(
                 ('Different index for `y` and `exog`. They must be equal '
-                'to ensure the correct alignment of values.')      
+                'to ensure the correct alignment of values.')
                 )
-       
-        X_train  = []
-        y_train  = []
+
+        X_train = []
+        y_train = []
 
         for i in range(len(y) - self.window_size):
 
             train_index = np.arange(i, self.window_size + i)
-            test_index  = self.window_size + i
+            test_index = self.window_size + i
 
-            X_train.append(self.create_predictors(y=y_values[train_index]))
+            X_train.append(self.create_predictors(
+                y=y_values[train_index]),
+                idx=y_index[train_index]),
+            )
             y_train.append(y_values[test_index])
-        
-        X_train = np.vstack(X_train)
-        y_train = np.array(y_train)
-        X_train_col_names = [f"custom_predictor_{i}" for i in range(X_train.shape[1])]
+
+        X_train=np.vstack(X_train)
+        y_train=np.array(y_train)
+        X_train_col_names=[f"custom_predictor_{i}" for i in range(X_train.shape[1])]
 
         if np.isnan(X_train).any():
             raise Exception(
                 f"`create_predictors()` is returning `NaN` values."
             )
-        
+
         if exog is not None:
-            col_names_exog = exog.columns if isinstance(exog, pd.DataFrame) else [exog.name]
+            col_names_exog=exog.columns if isinstance(
+                exog, pd.DataFrame) else [exog.name]
             X_train_col_names.extend(col_names_exog)
             # The first `self.window_size` positions have to be removed from exog
             # since they are not in X_train.
-            X_train = np.column_stack((X_train, exog_values[self.window_size:, ]))
+            X_train=np.column_stack((X_train, exog_values[self.window_size:, ]))
 
-        X_train = pd.DataFrame(
-                    data    = X_train,
+        X_train=pd.DataFrame(
+                    data = X_train,
                     columns = X_train_col_names,
-                    index   = y_index[self.window_size: ]
+                    index = y_index[self.window_size:]
                   )
         self.X_train_col_names = X_train_col_names
         y_train = pd.Series(
@@ -273,10 +276,10 @@ class ForecasterAutoregCustom(ForecasterBase):
                     index = y_index[self.window_size: ],
                     name  = 'y'
                  )
-                        
+
         return X_train, y_train
 
-        
+
     def fit(
         self,
         y: Union[np.ndarray, pd.Series],
@@ -284,24 +287,24 @@ class ForecasterAutoregCustom(ForecasterBase):
     ) -> None:
         '''
         Training Forecaster.
-        
+
         Parameters
-        ----------        
+        ----------
         y : pandas Series
             Training time series.
-            
+
         exog : pandas Series, pandas DataFrame, default `None`
             Exogenous variable/s included as predictor/s. Must have the same
             number of observations as `y` and their indexes must be aligned so
             that y[i] is regressed on exog[i].
 
 
-        Returns 
+        Returns
         -------
         None
-        
+
         '''
-        
+
         # Reset values in case the forecaster has already been fitted.
         self.index_type           = None
         self.index_freq           = None
@@ -313,15 +316,15 @@ class ForecasterAutoregCustom(ForecasterBase):
         self.X_train_col_names    = None
         self.fitted               = False
         self.training_range       = None
-        
+
         if exog is not None:
             self.included_exog = True
             self.exog_type = type(exog)
             self.exog_col_names = \
                  exog.columns.to_list() if isinstance(exog, pd.DataFrame) else exog.name
-        
+
         X_train, y_train = self.create_train_X_y(y=y, exog=exog)
-        
+
         if not str(type(self.regressor)) == "<class 'xgboost.sklearn.XGBRegressor'>":
             self.regressor.fit(X=X_train, y=y_train)
         else:
@@ -332,7 +335,7 @@ class ForecasterAutoregCustom(ForecasterBase):
         self.index_type = type(X_train.index)
         if isinstance(X_train.index, pd.DatetimeIndex):
             self.index_freq = X_train.index.freqstr
-        else: 
+        else:
             self.index_freq = X_train.index.step
 
         if not str(type(self.regressor)) == "<class 'xgboost.sklearn.XGBRegressor'>":
@@ -342,9 +345,9 @@ class ForecasterAutoregCustom(ForecasterBase):
         if len(residuals) > 1000:
             # Only up to 1000 residuals are stored
             rng = np.random.default_rng(seed=123)
-            residuals = rng.choice(a=residuals, size=1000, replace=False)                                              
+            residuals = rng.choice(a=residuals, size=1000, replace=False)
         self.in_sample_residuals = residuals
-        
+
         # The last time window of training data is stored so that predictors in
         # the first iteration of `predict()` can be calculated.
         self.last_window = y.iloc[-self.window_size:].copy()
@@ -354,35 +357,39 @@ class ForecasterAutoregCustom(ForecasterBase):
         self,
         steps: int,
         last_window: np.array,
+        last_indow_index: pd.Index,
         exog: np.array
     ) -> pd.Series:
         '''
         Predict n steps ahead. It is an iterative process in which, each prediction,
         is used as a predictor for the next step.
-        
+
         Parameters
         ----------
         steps : int
             Number of future steps predicted.
-            
+
         last_window : numpy ndarray
-            Values of the series used to create the predictors (lags) need in the 
+            Values of the series used to create the predictors (lags) need in the
             first iteration of prediction (t + 1).
-            
+
         exog : numpy ndarray, pandas DataFrame
             Exogenous variable/s included as predictor/s.
 
-        Returns 
+        Returns
         -------
         predictions : numpy ndarray
             Predicted values.
-            
+
         '''
 
         predictions = np.full(shape=steps, fill_value=np.nan)
 
         for i in range(steps):
-            X = self.create_predictors(y=last_window).reshape(1, -1)
+            X = self.create_predictors(
+                y=last_window,
+                idx=last_indow_index,
+            ).reshape(1, -1)
             if np.isnan(X).any():
                 raise Exception(
                     f"`create_predictors()` is returning `NaN` values."
@@ -397,13 +404,13 @@ class ForecasterAutoregCustom(ForecasterBase):
                 prediction = self.regressor.predict(X)
                 predictions[i] = prediction.ravel()[0]
 
-            # Update `last_window` values. The first position is discarded and 
+            # Update `last_window` values. The first position is discarded and
             # the new prediction is added at the end.
             last_window = np.append(last_window[1:], prediction)
 
         return predictions
-        
-            
+
+
     def predict(
         self,
         steps: int,
@@ -413,28 +420,28 @@ class ForecasterAutoregCustom(ForecasterBase):
         '''
         Predict n steps ahead. It is an recursive process in which, each prediction,
         is used as a predictor for the next step.
-        
+
         Parameters
         ----------
         steps : int
             Number of future steps predicted.
-            
+
         last_window : pandas Series, default `None`
-            Values of the series used to create the predictors (lags) need in the 
+            Values of the series used to create the predictors (lags) need in the
             first iteration of prediction (t + 1).
-    
+
             If `last_window = None`, the values stored in` self.last_window` are
             used to calculate the initial predictors, and the predictions start
             right after training data.
-            
+
         exog : pandas Series, pandas DataFrame, default `None`
             Exogenous variable/s included as predictor/s.
 
-        Returns 
+        Returns
         -------
         predictions : pandas Series
             Predicted values.
-            
+
         '''
 
         check_predict_input(
@@ -450,31 +457,32 @@ class ForecasterAutoregCustom(ForecasterBase):
             exog_col_names = self.exog_col_names,
             max_steps      = None,
         )
-     
+
         if exog is not None:
             if isinstance(exog, pd.DataFrame):
                 exog_values, _ = preprocess_exog(
                                     exog = exog[self.exog_col_names].iloc[:steps, ]
                                  )
-            else: 
+            else:
                 exog_values, _ = preprocess_exog(
                                     exog = exog.iloc[:steps, ]
                                  )
         else:
             exog_values = None
-        
+
         if last_window is not None:
             last_window_values, last_window_index = preprocess_last_window(
                                                         last_window = last_window
-                                                    )  
+                                                    )
         else:
             last_window_values, last_window_index = preprocess_last_window(
                                                         last_window = self.last_window
                                                     )
-            
+
         predictions = self._recursive_predict(
                         steps       = steps,
                         last_window = copy(last_window_values),
+                        last_window_index = copy(last_window_index),
                         exog        = copy(exog_values)
                       )
 
@@ -489,12 +497,13 @@ class ForecasterAutoregCustom(ForecasterBase):
 
         return predictions
 
-    
-    
+
+
     def _estimate_boot_interval(
         self,
         steps: int,
         last_window: Optional[np.ndarray]=None,
+        last_window_index: Optional[pd.Index]=None,
         exog: Optional[np.ndarray]=None,
         interval: list=[5, 95],
         n_boot: int=500,
@@ -506,44 +515,44 @@ class ForecasterAutoregCustom(ForecasterBase):
         for the next step and bootstrapping is used to estimate prediction
         intervals. This method only returns prediction intervals.
         See predict_intervals() to calculate both, predictions and intervals.
-        
+
         Parameters
-        ---------- 
+        ----------
         steps : int
             Number of future steps predicted.
-            
+
         last_window : 1d numpy ndarray shape (, max_lag), default `None`
-            Values of the series used to create the predictors (lags) needed in the 
+            Values of the series used to create the predictors (lags) needed in the
             first iteration of prediction (t + 1).
-    
+
             If `last_window = None`, the values stored in` self.last_window` are
             used to calculate the initial predictors, and the predictions start
             right after training data.
-            
+
         exog : numpy ndarray, default `None`
             Exogenous variable/s included as predictor/s.
-            
+
         n_boot: int, default `500`
             Number of bootstrapping iterations used to estimate prediction
             intervals.
 
         random_state: int
-            Sets a seed to the random generator, so that boot intervals are always 
+            Sets a seed to the random generator, so that boot intervals are always
             deterministic.
-            
+
         interval: list, default `[5, 95]`
             Confidence of the prediction interval estimated. Sequence of percentiles
             to compute, which must be between 0 and 100 inclusive.
-            
+
         in_sample_residuals: bool, default `True`
             If `True`, residuals from the training data are used as proxy of
             prediction error to create prediction intervals. If `False`, out of
             sample residuals are used. In the latter case, the user should have
             calculated and stored the residuals within the forecaster (see
             `set_out_sample_residuals()`).
-            
 
-        Returns 
+
+        Returns
         -------
         prediction_interval : numpy ndarray, shape (steps, 2)
             Interval estimated for each prediction by bootstrapping:
@@ -556,12 +565,14 @@ class ForecasterAutoregCustom(ForecasterBase):
         https://otexts.com/fpp2/prediction-intervals.html
         Forecasting: Principles and Practice (2nd ed) Rob J Hyndman and
         George Athanasopoulos.
-            
+
         '''
 
         if last_window is None:
             last_window = self.last_window.values
-        
+        if last_window_index is None:
+            last_window_index = self.last_window.index
+
         boot_predictions = np.full(
                                 shape      = (steps, n_boot),
                                 fill_value = np.nan,
@@ -572,14 +583,14 @@ class ForecasterAutoregCustom(ForecasterBase):
 
         for i in range(n_boot):
 
-            # In each bootstraping iteration the initial last_window and exog 
+            # In each bootstraping iteration the initial last_window and exog
             # need to be restored.
             last_window_boot = last_window.copy()
             if exog is not None:
                 exog_boot = exog.copy()
             else:
                 exog_boot = None
-                
+
             if in_sample_residuals:
                 residuals = self.in_sample_residuals
             else:
@@ -596,9 +607,10 @@ class ForecasterAutoregCustom(ForecasterBase):
                 prediction = self._recursive_predict(
                                 steps       = 1,
                                 last_window = last_window_boot,
-                                exog        = exog_boot 
+                                last_window_index = last_window_boot,
+                                exog        = exog_boot
                             )
-                
+
                 prediction_with_residual  = prediction + sample_residuals[step]
                 boot_predictions[step, i] = prediction_with_residual
 
@@ -606,16 +618,16 @@ class ForecasterAutoregCustom(ForecasterBase):
                                     last_window_boot[1:],
                                     prediction_with_residual
                                    )
-                
+
                 if exog is not None:
                     exog_boot = exog_boot[1:]
-                            
+
         prediction_interval = np.percentile(boot_predictions, q=interval, axis=1)
         prediction_interval = prediction_interval.transpose()
-        
+
         return prediction_interval
-    
-    
+
+
     def predict_interval(
         self,
         steps: int,
@@ -630,35 +642,35 @@ class ForecasterAutoregCustom(ForecasterBase):
         Iterative process in which, each prediction, is used as a predictor
         for the next step and bootstrapping is used to estimate prediction
         intervals. Both, predictions and intervals, are returned.
-        
+
         Parameters
-        ---------- 
+        ----------
         steps : int
             Number of future steps predicted.
-            
+
         last_window : pandas Series, default `None`
-            Values of the series used to create the predictors (lags) needed in the 
+            Values of the series used to create the predictors (lags) needed in the
             first iteration of prediction (t + 1).
-    
+
             If `last_window = None`, the values stored in` self.last_window` are
             used to calculate the initial predictors, and the predictions start
             right after training data.
-            
+
         exog : pandas Series, pandas DataFrame, default `None`
             Exogenous variable/s included as predictor/s.
-            
+
         interval: list, default `[5, 95]`
             Confidence of the prediction interval estimated. Sequence of percentiles
             to compute, which must be between 0 and 100 inclusive.
-            
+
         n_boot: int, default `500`
             Number of bootstrapping iterations used to estimate prediction
             intervals.
 
         random_state: int, default 123
-            Sets a seed to the random generator, so that boot intervals are always 
+            Sets a seed to the random generator, so that boot intervals are always
             deterministic.
-            
+
         in_sample_residuals: bool, default `True`
             If `True`, residuals from the training data are used as proxy of
             prediction error to create prediction intervals. If `False`, out of
@@ -666,7 +678,7 @@ class ForecasterAutoregCustom(ForecasterBase):
             calculated and stored the residuals within the forecaster (see
             `set_out_sample_residuals()`).
 
-        Returns 
+        Returns
         -------
         predictions : pandas DataFrame
             Values predicted by the forecaster and their estimated interval:
@@ -680,9 +692,9 @@ class ForecasterAutoregCustom(ForecasterBase):
         https://otexts.com/fpp2/prediction-intervals.html
         Forecasting: Principles and Practice (2nd ed) Rob J Hyndman and
         George Athanasopoulos.
-            
+
         '''
-        
+
         check_predict_input(
             steps          = steps,
             fitted         = self.fitted,
@@ -696,28 +708,28 @@ class ForecasterAutoregCustom(ForecasterBase):
             exog_col_names = self.exog_col_names,
             max_steps      = None,
         )
-        
+
         if exog is not None:
             if isinstance(exog, pd.DataFrame):
                 exog_values, _ = preprocess_exog(
                                     exog = exog[self.exog_col_names].iloc[:steps, ]
                                  )
-            else: 
+            else:
                 exog_values, _ = preprocess_exog(
                                     exog = exog.iloc[:steps, ]
                                  )
         else:
             exog_values = None
-            
+
         if last_window is not None:
             last_window_values, last_window_index = preprocess_last_window(
                                                         last_window = last_window
-                                                    )  
+                                                    )
         else:
             last_window_values, last_window_index = preprocess_last_window(
                                                         last_window = self.last_window
                                                     )
-        
+
         # Since during predict() `last_window` and `exog` are modified, the
         # originals are stored to be used later
         last_window_values_original = last_window_values.copy()
@@ -725,23 +737,25 @@ class ForecasterAutoregCustom(ForecasterBase):
             exog_values_original = exog_values.copy()
         else:
             exog_values_original = None
-        
+
         predictions = self._recursive_predict(
                             steps       = steps,
                             last_window = last_window_values,
+                            last_window_index = last_window_index,
                             exog        = exog_values
                       )
 
         predictions_interval = self._estimate_boot_interval(
                                     steps       = steps,
                                     last_window = copy(last_window_values_original),
+                                    last_window_index = copy(last_window_index),
                                     exog        = copy(exog_values_original),
                                     interval    = interval,
                                     n_boot      = n_boot,
                                     random_state = random_state,
                                     in_sample_residuals = in_sample_residuals
                                 )
-        
+
         predictions = np.column_stack((predictions, predictions_interval))
 
         predictions = pd.DataFrame(
@@ -755,46 +769,46 @@ class ForecasterAutoregCustom(ForecasterBase):
 
         return predictions
 
-    
+
     def set_params(self, **params: dict) -> None:
         '''
         Set new values to the parameters of the scikit learn model stored in the
         ForecasterAutoregCustom.
-        
+
         Parameters
         ----------
         params : dict
             Parameters values.
 
-        Returns 
+        Returns
         -------
         self
-        
+
         '''
-        
+
         self.regressor = clone(self.regressor)
         self.regressor.set_params(**params)
-        
-    
+
+
     def set_out_sample_residuals(self, residuals: pd.Series, append: bool=True)-> None:
         '''
         Set new values to the attribute `out_sample_residuals`. Out of sample
         residuals are meant to be calculated using observations that did not
         participate in the training process.
-        
+
         Parameters
         ----------
         residuals : pd.Series
             Values of residuals. If len(residuals) > 1000, only a random sample
             of 1000 values are stored.
-            
+
         append : bool, default `True`
             If `True`, new residuals are added to the once already stored in the
             attribute `out_sample_residuals`. Once the limit of 1000 values is
             reached, no more values are appended. If False, `out_sample_residuals`
             is overwritten with the new residuals.
-            
-        Returns 
+
+        Returns
         -------
         self
         '''
@@ -803,12 +817,12 @@ class ForecasterAutoregCustom(ForecasterBase):
             raise Exception(
                 f"`residuals` argument must be `pd.Series`. Got {type(residuals)}"
             )
-            
+
         if len(residuals) > 1000:
             rng = np.random.default_rng(seed=123)
             residuals = rng.choice(a=residuals, size=1000, replace=False)
-            residuals = pd.Series(residuals)   
-    
+            residuals = pd.Series(residuals)
+
         if append and self.out_sample_residuals is not None:
             free_space = max(0, 1000 - len(self.out_sample_residuals))
             if len(residuals) < free_space:
@@ -824,9 +838,9 @@ class ForecasterAutoregCustom(ForecasterBase):
 
         self.out_sample_residuals = pd.Series(residuals)
 
-    
+
     def get_feature_importance(self) -> pd.DataFrame:
-        '''      
+        '''
         Return feature importance of the regressor stored in the
         forecaster. Only valid when regressor stores internally the feature
         importance in the attribute `feature_importances_` or `coef_`.
@@ -851,7 +865,7 @@ class ForecasterAutoregCustom(ForecasterBase):
                                     'feature': self.X_train_col_names,
                                     'importance' : estimator.feature_importances_
                                 })
-        except:   
+        except:
             try:
                 feature_importance = pd.DataFrame({
                                         'feature': self.X_train_col_names,
